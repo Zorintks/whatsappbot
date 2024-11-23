@@ -1,0 +1,65 @@
+const { Client, LocalAuth } = require('whatsapp-web.js');  // Importa o Client e LocalAuth
+const qrcode = require('qrcode-terminal');  // Para gerar o QR Code no terminal
+const client = new Client({
+    authStrategy: new LocalAuth(),  // Usa o LocalAuth para armazenar a autenticação
+});
+
+client.on('qr', (qr) => {
+    // Quando o QR Code for gerado, exibe no terminal
+    qrcode.generate(qr, { small: true });
+    console.log('QR Code gerado. Escaneie para autenticar.');
+});
+
+client.on('ready', () => {
+    // Quando o bot estiver pronto, informa no console
+    console.log('Bot está pronto!');
+});
+
+client.on('message', async (msg) => {
+    // Exibe log detalhado de cada mensagem recebida
+    console.log(`Mensagem recebida de ${msg.from}: ${msg.body}`);
+    console.log(`ID do remetente: ${msg.author || msg.from}`); // Aqui mostramos o ID da pessoa que enviou a mensagem
+
+    // Comando !ping
+    if (msg.body == '/ping') {
+        msg.reply('pong');
+    }
+
+    // Comando !lock - Apenas administradores podem usar
+    if (msg.body == '/lock') {
+        // Verifica se a mensagem foi enviada em um grupo
+        if (msg.from.endsWith('@g.us')) {  // Verifica se é um grupo (IDs de grupos terminam com '@g.us')
+            // Obtém o chat do grupo
+            const chat = await msg.getChat();
+
+            // Verifica se o chat é um grupo
+            if (chat.isGroup) {
+                // Obtém a lista de participantes do grupo
+                const participants = chat.participants;
+
+                // Log: Mostra os participantes do grupo (para depuração)
+                console.log('Lista de participantes:', participants);
+                
+                // Verifica se o remetente é um administrador no grupo
+                const isAdmin = participants.some(participant => 
+                    participant.id._serialized === msg.from && participant.isAdmin
+                );
+
+                if (isAdmin) {
+                    // Altera a configuração do grupo para permitir somente administradores enviarem mensagens
+                    await chat.setMessagesAdminsOnly(true);
+                    msg.reply('Somente administradores podem agora enviar mensagens neste grupo.');
+                    console.log('Configuração alterada para permitir apenas administradores no grupo:', chat.id);
+                } else {
+                    msg.reply('Você não tem permissão para usar este comando. Apenas administradores podem.');
+                }
+            } else {
+                msg.reply('Este comando só pode ser usado em grupos.');
+            }
+        } else {
+            msg.reply('Este comando só pode ser usado em grupos.');
+        }
+    }
+});
+
+client.initialize();
